@@ -1,132 +1,226 @@
-import React, { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { toast } from 'react-toastify';
- 
-const API_BASE = "http://localhost:3000/api/v1";
- 
-const Signup = () => {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("Student");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const navigate = useNavigate();
- 
-  const handleSignup = async (e) => {
-    e.preventDefault();
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>signup-backend</artifactId>
+    <version>1.0.0</version>
+    <name>Signup Backend</name>
+    <description>React Signup Backend</description>
 
-    if (!name || !email || !password || !role) {
-      toast.error("All fields are required");
-      return;
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.2</version>
+    </parent>
+
+    <dependencies>
+        <!-- REST APIs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- JPA + Hibernate -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- MySQL Driver -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+
+        <!-- For Local Testing: H2 (optional) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Validation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Lombok (optional, reduces boilerplate code) -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+application properties 
+
+spring.datasource.url=jdbc:mysql://localhost:3306/signupdb?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=yourpassword
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+server.port=8080
+
+# Allow React frontend
+spring.web.cors.allowed-origins=http://localhost:3000
+spring.web.cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS
+
+
+
+user.java
+
+
+package com.example.signup.model;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+
+@Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank
+    private String name;
+
+    @NotBlank
+    private String role;
+
+    @Email
+    @Column(unique = true)
+    private String email;
+
+    @NotBlank
+    private String password;
+}
+
+
+user repository.java
+
+
+package com.example.signup.repository;
+
+import com.example.signup.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+}
+
+user service.java
+
+package com.example.signup.service;
+
+import com.example.signup.model.User;
+import com.example.signup.repository.UserRepository;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepo;
+
+    public UserService(UserRepository userRepo) {
+        this.userRepo = userRepo;
     }
 
-    const studentEmailRegex = /^[^\s@]+@stu\.com$/;
-    const instructorEmailRegex = /^[^\s@]+@ins\.com$/;
-
-    if (role === "Student" && !studentEmailRegex.test(email)) {
-      toast.error("Student email must end with @stu.com");
-      return;
+    public Optional<User> getUserByEmail(String email) {
+        return userRepo.findByEmail(email);
     }
 
-    if (role === "Instructor" && !instructorEmailRegex.test(email)) {
-      toast.error("Instructor email must end with @ins.com");
-      return;
+    public User saveUser(User user) {
+        return userRepo.save(user);
+    }
+}
+
+
+user controller.java
+
+
+package com.example.signup.controller;
+
+import com.example.signup.model.User;
+import com.example.signup.service.UserService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/v1/users")
+@CrossOrigin(origins = "http://localhost:3000")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
     }
 
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+[\]{};':"\\|,.<>/?]).{8,}$/;
-    if (!passwordRegex.test(password)) {
-      toast.error("Password must be at least 8 characters long, include one uppercase letter, one number, and one special character");
-      return;
+    // ✅ Check if user exists
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> getUserByEmail(@RequestParam String email) {
+        Optional<User> user = userService.getUserByEmail(email);
+        Map<String, Object> response = new HashMap<>();
+        response.put("users", user.isPresent() ? List.of(user.get()) : Collections.emptyList());
+        return ResponseEntity.ok(response);
     }
 
-    try {
-      const existingUser = await axios.get(`${API_BASE}/users?email=${email}`);
+    // ✅ Create new user
+    @PostMapping
+    public ResponseEntity<?> createUser(@RequestBody User user) {
+        if (userService.getUserByEmail(user.getEmail()).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "User already exists"));
+        }
 
-      const userExists = Array.isArray(existingUser.data)
-        ? existingUser.data.length > 0
-        : existingUser.data.users?.some((u) => u.email === email);
-
-      if (userExists) {
-        toast.error("User already exists. Please login.");
-        return;
-      }
-
-      const newUser = {
-        name,
-        role,
-        email,
-        password,
-        username: email, // for login compatibility
-      };
-
-      await axios.post(`${API_BASE}/users`, newUser);
-      toast.success("Account created successfully!");
-      navigate("/login");
-    } catch (err) {
-      // Handling server-side errors, e.g., if the POST itself fails due to validation/conflict
-      // which wasn't caught by the GET check.
-      if (err.response && err.response.data && err.response.data.message) {
-        toast.error(err.response.data.message);
-      } else {
-        toast.error("Something went wrong. Try again.");
-      }
-      console.error("Signup failed:", err);
+        userService.saveUser(user);
+        return ResponseEntity.ok(Map.of("message", "User created successfully"));
     }
-  };
- 
-  return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <form
-        onSubmit={handleSignup}
-        className="bg-white p-8 rounded-xl shadow-lg w-96"
-      >
-        <h2 className="text-2xl font-bold mb-6 text-center">Sign Up</h2>
+}
 
-        <input
-          type="text"
-          placeholder="Full Name"
-          className="w-full p-3 border rounded mb-4"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
- 
-        <select
-          className="w-full p-3 border rounded mb-4"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="Student">Student</option>
-          <option value="Instructor">Instructor</option>
-        </select>
- 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 border rounded mb-4"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
- 
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 border rounded mb-4"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
- 
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 text-white p-3 rounded hover:bg-indigo-700"
-        >
-          Sign Up
-        </button>
-      </form>
-    </div>
-  );
-};
- 
-export default Signup;
+
+signup application.java
+
+package com.example.signup;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SignupApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SignupApplication.class, args);
+    }
+}
